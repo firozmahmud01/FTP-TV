@@ -24,7 +24,7 @@ public class ftplib {
 
 
     public static class FTPItem{
-        private String name,link;
+        private String name,link,image,rating;
         private boolean isDir;
         public FTPItem(String name,String link){
             this.name=name;
@@ -36,6 +36,19 @@ public class ftplib {
         public String getLink(){
             return link;
         }
+        public String getImage(){
+            return image;
+        }
+        public String getRating(){
+            return rating;
+        }
+        public void setImage(String image){
+            this.image=image;
+        }
+        public void setRating(String rating){
+            this.rating=rating;
+        }
+
         public boolean isDir(){
             if(link.endsWith("/"))
                 return true;
