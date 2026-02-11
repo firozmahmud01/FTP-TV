@@ -1,6 +1,8 @@
 package com.firoz.rafsan.ftptv;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -9,7 +11,8 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 public class MainActivity extends AppCompatActivity {
-
+Handler hand;
+TextView tv;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -20,5 +23,24 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+        hand=new Handler();
+        tv=findViewById(R.id.tv);
+        (new Thread() {
+            @Override
+            public void run() {
+                try {
+                    String data=imdb.searchIMDB("The Shawshank Redemption");
+                    hand.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            tv.setText(data);
+                        }
+                    });
+
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
+            }
+        }).start();
     }
 }
