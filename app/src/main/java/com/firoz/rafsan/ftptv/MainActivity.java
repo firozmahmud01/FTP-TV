@@ -1,12 +1,18 @@
 package com.firoz.rafsan.ftptv;
 
 import android.os.Bundle;
+import android.util.Log;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.LifecycleOwner;
+
+import java.util.List;
+
+import kotlin.Triple;
 
 public class MainActivity extends AppCompatActivity {
 
