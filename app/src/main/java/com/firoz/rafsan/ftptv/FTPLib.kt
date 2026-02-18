@@ -2,12 +2,15 @@ package com.firoz.rafsan.ftptv
 
 import android.R.attr.name
 import android.R.attr.rating
+import org.json.JSONArray
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.util.regex.Pattern
+import kotlin.text.contains
 
 object FTPLib {
     private const val FMUrlRegex = """href=["']([^.].+?)["']"""
@@ -22,7 +25,7 @@ object FTPLib {
     @Throws(Exception::class)
     private fun sendGet(url: String): String {
         val connection = URL(url).openConnection() as HttpURLConnection
-        return connection.getInputStream().readBytes().toString()
+        return String(connection.getInputStream().readBytes())
     }
 
     private fun parseFtp(baseUrl: String, data: String, isFM: Boolean): List<FTPItem> {
@@ -36,13 +39,13 @@ object FTPLib {
     }
 
     @JvmStatic
-    fun getMetaData(item: FTPItem, isFM: Boolean): FTPMetadata {
+    fun getMetaData(item: FTPItem, name: String, isFM: Boolean): FTPMetadata {
         return if (isFM) {
             val res = try {
                 sendGet(
                     "https://fmftp.net/api/search?search=${
                         URLEncoder.encode(
-                            item.name, "UTF-8"
+                            name, "UTF-8"
                         )
                     }"
                 )
@@ -50,30 +53,42 @@ object FTPLib {
                 ""
             }
 
-            val posterImageRegex = Regex("""\"poster_path\":\"(.+?)\"""").find(res)
-            val plotRegex = Regex("""\"overview\":\"(.+?)\"""").find(res)
-            val ratingRegex = Regex("""\"online_rating\":(.+?),\"""").find(res)
-            val poster = if (posterImageRegex != null) {
-                "http://fmftp.net/content-images/movies/posters${posterImageRegex.groups[1]!!.value}"
+            val jsonArray = JSONArray(res)
+
+            if (jsonArray.length() == 0) {
+                // imdb goes here.
+                imdb.getImdbMetadata(item.name)
             } else {
-                ""
+
+                var poster: String? = null
+                var rating: String? = null
+                var plot: String? = null
+
+                for (i in 0 until jsonArray.length()){
+                    try {
+                        val jsonObject = jsonArray.getJSONObject(i)!!
+                        val url = jsonObject.getString("url")
+                        val itemURL = URLDecoder.decode(item.itemURL, "utf-8")
+                        if (url !in itemURL) continue
+                        plot = jsonObject.getString("overview")
+                        poster = "http://fmftp.net/content-images/movies/posters${jsonObject.getString("poster_path")}"
+                        rating = "${jsonObject.getDouble("online_rating")} / 10"
+
+                        break
+
+                    } catch (_: Exception){
+
+                    }
+                }
+                if (poster != null && plot != null && rating != null)  FTPMetadata(poster,plot,rating)
+                else imdb.getImdbMetadata(item.name)
             }
-            val plot = if (plotRegex != null) {
-                plotRegex.groups[1]!!.value
-            } else {
-                ""
-            }
-            val rating = if (ratingRegex != null) {
-                "${ratingRegex.groups[1]!!.value} / 10"
-            } else {
-                "0 / 10"
-            }
-            FTPMetadata(poster, plot, rating)
+
         } else {
             var res = try {
                 sendPost(
                     "http://www.timepassbd.live/rpc.php",
-                    mapOf("queryString" to item.name.take(5))
+                    mapOf("queryString" to name)
                 )
             } catch (e: Exception) { ""}
             val ftpUrlRegex = Regex("""href=\"(.+?)\"""").find(res)
@@ -107,7 +122,7 @@ object FTPLib {
                 FTPMetadata(imageURL, plot, rating)
             } else {
                 // imdb work goes here.
-                FTPMetadata("", "", "0 / 10")
+                imdb.getImdbMetadata(item.name)
             }
         }
     }
@@ -128,6 +143,6 @@ object FTPLib {
 
         connection.getOutputStream().use { it.write(body) }
 
-        return connection.getInputStream().use { it.readBytes().toString() }
+        return connection.getInputStream().use { String(it.readBytes()) }
     }
 }

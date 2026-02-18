@@ -26,5 +26,17 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+        new Thread(() -> {
+            try {
+                List<FTPItem> xxxx = FTPLib.listDir("http://fmftp.net/data/disk-1/movies/hindidub/777%20Charlie%20%282022%29/", true);
+                FTPMetadata dd = FTPLib.getMetaData(xxxx.get(0), xxxx.get(0).getName().substring(0, 5), true);
+                int a = 10;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }).start();
+
+
     }
 }
