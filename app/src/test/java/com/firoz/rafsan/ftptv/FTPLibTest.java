@@ -67,7 +67,7 @@ public class FTPLibTest {
     @Test
     public void tp_gives_correct_metadata() throws Exception {
         FTPItem epstine = FTPLib.listDir(tp_test_url3, false).get(0);
-        FTPMetadata ff = FTPLib.getMetaData(epstine, true);
+        FTPMetadata ff = FTPLib.getMetaData(epstine, epstine.getName().substring(0,5), false);
         assertEquals(tp_test_image_url, ff.getImageURL());
         assertEquals(tp_test_plot, ff.getPlot());
         assertEquals("6.7 / 10", ff.getRating());
@@ -76,7 +76,7 @@ public class FTPLibTest {
     @Test
     public void fm_gives_correct_metadata() throws Exception {
         FTPItem epstine = FTPLib.listDir(fm_test_url3, true).get(0);
-        FTPMetadata ff = FTPLib.getMetaData(epstine, true);
+        FTPMetadata ff = FTPLib.getMetaData(epstine, epstine.getName().substring(0,5), true);
         assertEquals(fm_test_image_url, ff.getImageURL());
         assertEquals(fm_test_plot, ff.getPlot());
         assertEquals("7.6 / 10", ff.getRating());

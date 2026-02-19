@@ -50,6 +50,7 @@ dependencies {
     implementation(libs.core.ktx)
     implementation(libs.kotlin.stdlib)
     testImplementation(libs.junit)
+    testImplementation(libs.json)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
 }

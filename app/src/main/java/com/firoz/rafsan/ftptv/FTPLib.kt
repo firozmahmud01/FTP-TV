@@ -1,17 +1,15 @@
 package com.firoz.rafsan.ftptv
 
-import android.R.attr.name
-import android.R.attr.rating
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.util.regex.Pattern
 
 object FTPLib {
-    private const val FMUrlRegex = """href=["']([^.].+?)["']"""
-    private const val TPUrlRegex = """href=["'](/t.+?)["']>"""
+    private const val FM_URL_REGEX = """href=["']([^.].+?)["']"""
+    private const val TP_URL_REGEX = """href=["'](/t.+?)["']>"""
 
     @JvmStatic
     @Throws(Exception::class)
@@ -22,12 +20,13 @@ object FTPLib {
     @Throws(Exception::class)
     private fun sendGet(url: String): String {
         val connection = URL(url).openConnection() as HttpURLConnection
-        return connection.getInputStream().readBytes().toString()
+        return String(connection.getInputStream().readBytes())
     }
 
     private fun parseFtp(baseUrl: String, data: String, isFM: Boolean): List<FTPItem> {
         val itemList = mutableListOf<FTPItem>()
-        val matcher = Pattern.compile(if (isFM) FMUrlRegex else TPUrlRegex, Pattern.MULTILINE).matcher(data)
+        val matcher =
+            Pattern.compile(if (isFM) FM_URL_REGEX else TP_URL_REGEX, Pattern.MULTILINE).matcher(data)
 
         while (matcher.find()) {
             itemList.add(FTPItem(baseUrl, matcher.group(1), isFM))
@@ -35,80 +34,82 @@ object FTPLib {
         return itemList as List<FTPItem>
     }
 
-    @JvmStatic
-    fun getMetaData(item: FTPItem, isFM: Boolean): FTPMetadata {
-        return if (isFM) {
-            val res = try {
-                sendGet(
-                    "https://fmftp.net/api/search?search=${
-                        URLEncoder.encode(
-                            item.name, "UTF-8"
+    private fun getFMMetadata(item: FTPItem, name: String): FTPMetadata {
+
+        val res = runCatching {
+            sendGet("https://fmftp.net/api/search?search=${URLEncoder.encode(name, "UTF-8")}")
+        }.getOrDefault("")
+
+        if (res.isEmpty()) return imdb.getImdbMetadata(item.name)
+        else {
+            val jsonArray = JSONArray(res)
+
+            if (jsonArray.length() == 0) {
+                // imdb goes here.
+                return imdb.getImdbMetadata(item.name)
+            } else {
+                for (i in 0 until jsonArray.length()) {
+                    val jsonObject = runCatching { jsonArray.getJSONObject(i) }.getOrElse {
+                        continue
+                    }
+                    val itemURL = URLDecoder.decode(item.itemURL, "utf-8")
+                    val url = runCatching { jsonObject.getString("url") }.getOrDefault("")
+                    if (!itemURL.contains(url)) continue
+                    val plot = runCatching { jsonObject.getString("overview") }.getOrDefault("")
+                    val poster = runCatching {
+                        "http://fmftp.net/content-images/movies/posters${
+                            jsonObject.getString("poster_path")
+                        }"
+                    }.getOrDefault("")
+                    val rating =
+                        runCatching { "${jsonObject.getDouble("online_rating")} / 10" }.getOrDefault(
+                            ""
                         )
-                    }"
-                )
-            } catch (_: Exception) {
-                ""
-            }
 
-            val posterImageRegex = Regex("""\"poster_path\":\"(.+?)\"""").find(res)
-            val plotRegex = Regex("""\"overview\":\"(.+?)\"""").find(res)
-            val ratingRegex = Regex("""\"online_rating\":(.+?),\"""").find(res)
-            val poster = if (posterImageRegex != null) {
-                "http://fmftp.net/content-images/movies/posters${posterImageRegex.groups[1]!!.value}"
-            } else {
-                ""
+                    return if (poster.isNotEmpty() && plot.isNotEmpty() && rating.isNotEmpty()) {
+                        FTPMetadata(poster, plot, rating)
+                    } else {
+                        imdb.getImdbMetadata(item.name)
+                    }
+                }
             }
-            val plot = if (plotRegex != null) {
-                plotRegex.groups[1]!!.value
-            } else {
-                ""
-            }
-            val rating = if (ratingRegex != null) {
-                "${ratingRegex.groups[1]!!.value} / 10"
-            } else {
-                "0 / 10"
-            }
-            FTPMetadata(poster, plot, rating)
+        }
+        return FTPMetadata()
+    }
+
+    private fun getTPMetadata(item: FTPItem, name: String): FTPMetadata {
+        var res = runCatching {
+            sendPost(
+                "http://www.timepassbd.live/rpc.php",
+                mapOf("queryString" to name)
+            )
+        }.getOrDefault("")
+        val ftpUrlRegex = Regex("""href="(.+?)"""").find(res)
+        if (ftpUrlRegex != null) {
+            val pageUrl = "http://timepassbd.live/${ftpUrlRegex.groups[1]?.value ?: ""}"
+            res = runCatching { sendGet(pageUrl) }.getOrDefault("")
+            if (res.isEmpty()) return imdb.getImdbMetadata(item.name)
+            val posterImageRegex = Regex("""<img.+?src="(.+?)" class=".+?wp-post-image"""").find(res)
+            val plotRegex = Regex("""<div .+?id="Details">\n.+?\n.+?<p>(.+?)</p>""").find(res)
+            val ratingRegex = Regex("""<td>\n\t+(\d{1,2}\.\d / 10)""").find(res)
+
+            val imageURL = posterImageRegex?.groups[1]?.value ?: ""
+            val plot = plotRegex?.groups[1]?.value ?: ""
+            val rating =  ratingRegex?.groups[1]?.value ?: "0 / 10"
+
+            return FTPMetadata(imageURL, plot, rating)
         } else {
-            var res = try {
-                sendPost(
-                    "http://www.timepassbd.live/rpc.php",
-                    mapOf("queryString" to item.name.take(5))
-                )
-            } catch (e: Exception) { ""}
-            val ftpUrlRegex = Regex("""href=\"(.+?)\"""").find(res)
-            if (ftpUrlRegex != null) {
-                val pageUrl = "http://timepassbd.live/${ftpUrlRegex.groups[1]!!.value}"
-                res = try {
-                    sendGet(pageUrl)
-                } catch (_: Exception) {""}
-                val posterImageRegex =
-                    Regex("""<img.+?src=\"(.+?)\" class=\".+?wp-post-image\"""").find(res)
-                val plotRegex =
-                    Regex("""<div .+?id=\"Details\">\n.+?\n.+?<p>(.+?)</p>""").find(res)
-                val ratingRegex = Regex("""<td>\n\t+(\d{1,2}\.\d / 10)""").find(res)
+            // imdb work goes here.
+            return imdb.getImdbMetadata(item.name)
+        }
+    }
 
-                val imageURL = if (posterImageRegex != null) {
-                    posterImageRegex.groups[1]!!.value
-                } else {
-                    ""
-                }
-                val plot = if (plotRegex != null) {
-                    plotRegex.groups[1]!!.value
-                } else {
-                    ""
-                }
-                val rating = if (ratingRegex != null) {
-                    ratingRegex.groups[1]!!.value
-                } else {
-                    "0 / 10"
-                }
-
-                FTPMetadata(imageURL, plot, rating)
-            } else {
-                // imdb work goes here.
-                FTPMetadata("", "", "0 / 10")
-            }
+    @JvmStatic
+    fun getMetaData(item: FTPItem, name: String, isFM: Boolean): FTPMetadata {
+        return if (isFM) {
+            getFMMetadata(item, name)
+        } else {
+            getTPMetadata(item, name)
         }
     }
 
@@ -128,6 +129,6 @@ object FTPLib {
 
         connection.getOutputStream().use { it.write(body) }
 
-        return connection.getInputStream().use { it.readBytes().toString() }
+        return connection.getInputStream().use { String(it.readBytes()) }
     }
 }
