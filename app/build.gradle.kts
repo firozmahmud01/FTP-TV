@@ -46,6 +46,8 @@ dependencies {
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
+    implementation(libs.room.runtime)
+    annotationProcessor(libs.room.compiler)
     implementation(libs.constraintlayout)
     implementation(libs.core.ktx)
     implementation(libs.kotlin.stdlib)
