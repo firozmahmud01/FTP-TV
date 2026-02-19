@@ -86,7 +86,7 @@ public class SyncService extends Service {
                     }
 
                     // 📡 fetch metadata
-                    FTPMetadata meta = FTPLib.getMetaData(item, isFM);
+                    FTPMetadata meta = FTPLib.getMetaData(item, item.getName().substring(0,5),isFM);
 
                     // 💾 save
                     MovieEntity movie = new MovieEntity();
