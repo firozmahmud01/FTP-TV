@@ -67,44 +67,57 @@ public class SyncService extends Service {
     // ================================
     // 📂 RECURSIVE SCAN
     // ================================
-    private void scanPath(String path, boolean isFM, MovieRepository repo) {
+    private void scanPath(String rootPath, boolean isFM, MovieRepository repo) {
         try {
-            List<FTPItem> items = FTPLib.listDir(path, isFM );
+            java.util.Deque<String> stack = new java.util.ArrayDeque<>();
+            stack.push(rootPath);
 
-            for (FTPItem item : items) {
+            while (!stack.isEmpty() && running) {
 
-                if (!running) return;
+                String currentPath = stack.pop();
 
-                if (item.isDir()) {
-                    // 🔁 recurse into folder
-                    scanPath(item.getItemURL(), isFM, repo);
-                } else {
+                List<FTPItem> items = FTPLib.listDir(currentPath, isFM );
 
-                    // 🔍 check database
-                    if (repo.exists(item.getItemURL())) {
-                        continue;
+                for (FTPItem item : items) {
+
+                    if (!running) return;
+
+                    if (item.isDir()) {
+                        // 📂 push folder to stack (DFS)
+                        if (item.getItemURL() != null) {
+                            stack.push(item.getItemURL());
+                        }
+                    } else {
+
+                        // 🔍 skip if already exists
+                        if (repo.exists(item.getItemURL())) {
+                            continue;
+                        }
+
+                        // 📡 fetch metadata
+                        FTPMetadata meta = FTPLib.getMetaData(item,item.getName().substring(0,5), isFM);
+
+                        // 💾 save entity
+                        MovieEntity movie = new MovieEntity();
+                        movie.name = item.getName();
+                        movie.itemURL = item.getItemURL();
+                        movie.isDir = false;
+                        movie.isFM = isFM;
+
+                        if (meta != null) {
+                            movie.imageURL = meta.getImageURL();
+                            movie.plot = meta.getPlot();
+                            movie.rating = meta.getRating();
+                        }
+
+                        repo.saveMovie(movie);
                     }
-
-                    // 📡 fetch metadata
-                    FTPMetadata meta = FTPLib.getMetaData(item, item.getName().substring(0,5),isFM);
-
-                    // 💾 save
-                    MovieEntity movie = new MovieEntity();
-                    movie.name = item.getName();
-                    movie.itemURL = item.getItemURL();
-                    movie.isDir = false;
-                    movie.isFM = isFM;
-
-                    movie.imageURL = meta.getImageURL();
-                    movie.plot = meta.getPlot();
-                    movie.rating = meta.getRating();
-
-                    repo.saveMovie(movie);
                 }
             }
 
         } catch (Exception e) {
-
+            e.printStackTrace();
         }
     }
+
 }
