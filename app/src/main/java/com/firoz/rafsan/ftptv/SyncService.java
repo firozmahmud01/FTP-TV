@@ -64,6 +64,15 @@ public class SyncService extends Service {
         }
     }
 
+    private String getFillteredName(String name){
+        if (name.contains("\'")){
+            return name.substring(name.indexOf("\'")).trim();
+        }else if(name.contains("(")){
+            return name.substring(name.indexOf("(")).trim();
+        }
+        return name;
+    }
+
     // ================================
     // 📂 RECURSIVE SCAN
     // ================================
@@ -101,8 +110,8 @@ public class SyncService extends Service {
                         MovieEntity movie = new MovieEntity();
                         movie.name = item.getName();
                         movie.itemURL = item.getItemURL();
-                        movie.isDir = false;
-                        movie.isFM = isFM;
+//                        movie.isDir = false;
+//                        movie.isFM = isFM;
 
                         if (meta != null) {
                             movie.imageURL = meta.getImageURL();

@@ -11,9 +11,12 @@ public class MovieEntity {
 
     public String name;
     public String itemURL;
-    public boolean isDir;
-    public boolean isFM;
+    public String imdbid;
+    public String genre;
 
+    public String websiteid;
+    public String category;
+    public String upload_date;
     public String imageURL;
     public String plot;
     public String rating;
